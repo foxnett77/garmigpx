@@ -74,7 +74,7 @@ export default function Home() {
   return (
     <div className="container">
       <header className="header">
-        <h1 className="title">Garmin GPX <span className="app-version">v0.3</span></h1>
+        <h1 className="title">Garmin GPX <span className="app-version">v0.4</span></h1>
         <p style={{ color: 'var(--text-muted)' }}>Scarica le tue attività</p>
       </header>
 
