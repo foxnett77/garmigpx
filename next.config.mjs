@@ -14,9 +14,7 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  experimental: {
-    serverComponentsExternalPackages: ["garmin-connect"],
-  }
+  serverExternalPackages: ["garmin-connect"],
 };
 
 export default withPWA(nextConfig);
