@@ -1,7 +1,0 @@
-{
-  "name": "garmin-gpx",
-  "version": "1.0.0",
-  "dependencies": {
-    "garmin-connect": "^1.4.11"
-  }
-}
