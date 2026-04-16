@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Garmin GPX Downloader</title>
+  <meta name="theme-color" content="#00ffcc">
+  <!-- Aggiungiamo icone e manifest minime -->
+  <link rel="manifest" href="manifest.json">
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --card: #1a1a1a;
+      --primary: #00ffcc;
+      --text: #ffffff;
+      --muted: #a0a0a0;
+      --border: #333333;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 20px; }
+    .container { max-width: 600px; margin: 0 auto; }
+    h1 { text-align: center; color: var(--primary); margin: 20px 0; }
+    .card { background: var(--card); padding: 20px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 20px; }
+    input { width: 100%; padding: 12px; margin-bottom: 12px; background: #000; border: 1px solid var(--border); color: #fff; border-radius: 8px; }
+    button { width: 100%; padding: 14px; background: var(--primary); color: #000; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    .activity-item { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .dl-btn { width: auto; background: transparent; border: 1px solid var(--primary); color: var(--primary); padding: 10px 15px; }
+    #errorMsg { color: #ff4444; background: rgba(255,0,0,0.1); padding: 10px; border-radius: 8px; display: none; margin-bottom: 15px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Garmin GPX</h1>
+    <div id="errorMsg"></div>
+
+    <div id="loginForm" class="card">
+      <input type="email" id="email" placeholder="Email Garmin Connect" required>
+      <input type="password" id="password" placeholder="Password" required>
+      <button id="loginBtn" onclick="login()">Vedi Ultime Attività</button>
+    </div>
+
+    <div id="activitiesList" style="display: none;"></div>
+  </div>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));
+      });
+    }
+
+    let currentCreds = null;
+
+    async function login() {
+      const email = document.getElementById('email').value;
+      const pass = document.getElementById('password').value;
+      const btn = document.getElementById('loginBtn');
+      const err = document.getElementById('errorMsg');
+      
+      if(!email || !pass) return;
+
+      btn.disabled = true;
+      btn.innerText = 'Caricamento da Garmin...';
+      err.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/activities', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({username: email, password: pass})
+        });
+        const data = await res.json();
+        
+        if(!res.ok) throw new Error(data.error);
+
+        currentCreds = { username: email, password: pass };
+        document.getElementById('loginForm').style.display = 'none';
+        
+        const listContainer = document.getElementById('activitiesList');
+        listContainer.style.display = 'block';
+        listContainer.innerHTML = `<button onclick="location.reload()" style="background:#333;color:white;margin-bottom:15px">Esci</button><h2>Attività Recenti</h2><br/>`;
+        
+        data.activities.forEach(act => {
+          const div = document.createElement('div');
+          div.className = 'activity-item';
+          const dist = act.distance ? (act.distance / 1000).toFixed(2) + ' km' : '';
+          const date = new Date(act.startTimeLocal).toLocaleDateString('it-IT');
+          
+          div.innerHTML = `
+            <div>
+              <h3>${act.activityName || 'Attività senza nome'}</h3>
+              <p style="color:var(--muted);font-size:14px">${date} • ${dist}</p>
+            </div>
+            <button class="dl-btn" onclick="downloadGPX(${act.activityId}, this)">Scarica</button>
+          `;
+          listContainer.appendChild(div);
+        });
+
+      } catch(e) {
+        err.innerText = e.message;
+        err.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.innerText = 'Vedi Ultime Attività';
+      }
+    }
+
+    async function downloadGPX(id, btnElement) {
+      btnElement.innerText = 'Wait...';
+      btnElement.disabled = true;
+
+      try {
+        const res = await fetch('/api/download', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({...currentCreds, activityId: id})
+        });
+        
+        if(!res.ok) {
+          const dat = await res.json();
+          throw new Error(dat.error);
+        }
+
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `activity_${id}.gpx`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        a.remove();
+        btnElement.innerText = 'Fatto!';
+      } catch(e) {
+        alert(e.message);
+        btnElement.innerText = 'Scarica';
+      } finally {
+        setTimeout(() => { btnElement.innerText = 'Scarica'; btnElement.disabled = false; }, 3000);
+      }
+    }
+  </script>
+</body>
+</html>
